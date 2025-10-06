@@ -1,0 +1,4 @@
+genome_fasta: "genome.fa"
+annotation_gtf: "annotation.gtf"
+star_index: "star_index"
+threads: 16

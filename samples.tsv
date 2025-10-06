@@ -1,0 +1,6 @@
+zfp3_1	/media/bret/Disk5/KR_RNA-seq/reads/S1_R1_001.fastq.gz	/media/bret/Disk5/KR_RNA-seq/reads/S1_R2_001.fastq.gz
+zfp3_2	/media/bret/Disk5/KR_RNA-seq/reads/S2_R1_001.fastq.gz	/media/bret/Disk5/KR_RNA-seq/reads/S2_R2_001.fastq.gz
+zfp3_3	/media/bret/Disk5/KR_RNA-seq/reads/S3_R1_001.fastq.gz	/media/bret/Disk5/KR_RNA-seq/reads/S3_R2_001.fastq.gz
+ctrl_1	/media/bret/Disk5/KR_RNA-seq/reads/S1ctrl_R1_001.fastq.gz	/media/bret/Disk5/KR_RNA-seq/reads/S1ctrl_R2_001.fastq.gz
+ctrl_2	/media/bret/Disk5/KR_RNA-seq/reads/S2ctrl_R1_001.fastq.gz	/media/bret/Disk5/KR_RNA-seq/reads/S2ctrl_R2_001.fastq.gz
+ctrl_3	/media/bret/Disk5/KR_RNA-seq/reads/S3ctrl_R1_001.fastq.gz	/media/bret/Disk5/KR_RNA-seq/reads/S3ctrl_R2_001.fastq.gz
