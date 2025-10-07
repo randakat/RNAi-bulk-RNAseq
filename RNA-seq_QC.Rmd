@@ -165,3 +165,62 @@ p_counts <- ggplot(counts_summary, aes(x = sample, y = assigned_reads)) +
 p_counts
 
 ```
+
+
+# Fractional multimappers (counts_fractional) vs original counts (multimappers discarded)
+
+```{r}
+# read the merged table
+counts <- read_tsv("merged_counts.txt", col_types = cols())
+
+#remove duplicate header
+counts <- counts[-1, ]
+
+counts<- as.data.frame(counts)
+
+counts_long <- counts %>%
+  pivot_longer(
+    cols = -Geneid,
+    names_to = "sample_type",
+    values_to = "count")
+  
+
+counts_long <- counts_long %>%
+    separate(sample_type, 
+             into = c("sample", "replicate", "type"), 
+             sep = "_",
+             extra = "merge") %>%
+    mutate(sample = paste(sample, replicate, sep = "_"),
+           count = as.numeric(count)) %>%
+    select(Geneid, sample, type, count)
+
+head(counts_long)
+
+
+# summarize total counts per sample and type
+summary_counts <- counts_long %>%
+  group_by(sample, type) %>%
+  summarize(total = sum(count, na.rm = TRUE), .groups = "drop")
+
+# make sure type is ordered for plotting
+summary_counts$type <- factor(summary_counts$type, levels = c("raw", "frac"))
+
+# bar plot: total assigned reads per sample
+ggplot(summary_counts, aes(x = sample, y = total, fill = type)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
+  labs(
+    title = "Comparison of Raw vs Fractional FeatureCounts",
+    x = "Sample",
+    y = "Total Assigned Reads",
+    fill = "Count Type"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.major.x = element_blank()
+  )
+
+
+```
+
