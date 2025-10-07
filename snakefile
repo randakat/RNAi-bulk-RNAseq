@@ -105,15 +105,39 @@ rule featurecounts_fraction:
                       -a {input.gtf} -o {output} {input.bam}
         """
 
-# Merge counts
+# merge counts
 rule merge_counts:
     input:
-        expand("counts/{sample}.counts.txt", sample=SAMPLES)
+        counts = expand("counts/{sample}.counts.txt", sample=SAMPLES),
+        counts_fraction = expand("counts_fractional/{sample}.counts.txt", sample=SAMPLES)
     output:
         "merged_counts.txt"
-    conda:
-        SUBREAD_ENV
-    shell:
-        """
-        paste {input} > {output}
-        """
+    run:
+        import pandas as pd
+        from pathlib import Path
+
+        # Build sample list and matching inputs
+        samples = SAMPLES
+        count_files = list(input.counts)
+        frac_files = list(input.counts_fraction)
+
+        # Read and merge each sample’s two files
+        merged_list = []
+        for sample, cf, ff in zip(samples, count_files, frac_files):
+            # read featureCounts outputs (skip header)
+            raw = pd.read_csv(cf, sep="\t", comment="#", skiprows=1, usecols=[0, 6], names=["Geneid", "assigned_raw"])
+            frac = pd.read_csv(ff, sep="\t", comment="#", skiprows=1, usecols=[0, 6], names=["Geneid", "assigned_fractional"])
+
+            # merge on gene ID
+            merged = pd.merge(raw, frac, on="Geneid", how="outer")
+            merged.rename(columns={"assigned_raw": f"{sample}_raw", "assigned_fractional": f"{sample}_frac"}, inplace=True)
+            merged_list.append(merged)
+
+        # Merge all samples together by Geneid
+        combined = merged_list[0]
+        for df in merged_list[1:]:
+            combined = pd.merge(combined, df, on="Geneid", how="outer")
+
+        # Fill missing with 0 and save
+        combined = combined.fillna(0)
+        combined.to_csv(output[0], sep="\t", index=False)
