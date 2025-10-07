@@ -1,0 +1,159 @@
+---
+title: "RNA-seq_QC"
+author: "Kate Randall"
+date: "2025-10-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load pkgs
+
+```{r}
+library(tidyverse)
+library(ggpubr)
+library(jsonlite)
+```
+
+
+# Fastp summary
+
+```{r}
+setwd("~/Desktop/KR_RNA-seq")
+
+
+# pull summary data from JSONs
+fastp_files <- list.files("trimmed", pattern = "_fastp.json$", full.names = TRUE)
+
+fastp_metrics <- map_dfr(fastp_files, function(f) {
+  d <- fromJSON(f)
+  tibble(
+    sample = str_remove(basename(f), "_fastp.json"),
+    total_reads_before = d$summary$before_filtering$total_reads,
+    total_reads_after  = d$summary$after_filtering$total_reads,
+    q30_rate_before    = d$summary$before_filtering$q30_rate,
+    q30_rate_after     = d$summary$after_filtering$q30_rate,
+    gc_before          = d$summary$before_filtering$gc_content,
+    gc_after           = d$summary$after_filtering$gc_content,
+    read1_mean_length_before = d$summary$before_filtering$read1_mean_length,
+    read1_mean_length_after  = d$summary$after_filtering$read1_mean_length
+  )
+})
+
+fastp_metrics
+
+
+
+# plot- total reads before/after filtering
+fastp_metrics %>%
+  pivot_longer(
+    cols = c(total_reads_before, total_reads_after),
+    names_to = "stage",
+    values_to = "total_reads"
+  ) %>%
+  mutate(stage = recode(stage,
+                        "total_reads_before" = "Before Filtering",
+                        "total_reads_after"  = "After Filtering")) %>%
+  ggplot(aes(x = sample, y = total_reads / 1e6, fill = stage)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(y = "Total Reads (millions)", x = "Sample", fill = "Stage") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+# plot- Q30 rate before/after filtering
+fastp_metrics %>%
+  pivot_longer(
+    cols = c(q30_rate_before, q30_rate_after),
+    names_to = "stage",
+    values_to = "q30_rate"
+  ) %>%
+  mutate(stage = recode(stage,
+                        "q30_rate_before" = "Before Filtering",
+                        "q30_rate_after"  = "After Filtering")) %>%
+  ggplot(aes(x = sample, y = q30_rate, fill = stage)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(y = "Q30 Rate", x = "Sample", fill = "Stage") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# plot- GC content before/after filtering
+fastp_metrics%>%
+  pivot_longer(
+    cols = c(gc_before, gc_after),
+    names_to = "stage",
+    values_to = "gc_content"
+  ) %>%
+  mutate(stage = recode(stage,
+                        "gc_before" = "Before Filtering",
+                        "gc_after"  = "After Filtering")) %>%
+  ggplot(aes(x = sample, y = gc_content, fill = stage)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(y = "GC Content", x = "Sample", fill = "Stage") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+
+
+# STAR alignment summary
+
+```{r}
+star_dir <- "aligned"
+star_logs <- list.files(star_dir, pattern = "_Log.final.out$", full.names = TRUE)
+
+parse_star_log <- function(file) {
+  lines <- readLines(file)
+  tibble(
+    sample = str_replace(basename(file), "_Log.final.out", ""),
+    uniquely_mapped = as.numeric(str_extract(lines[grep("Uniquely mapped reads %", lines)], "\\d+\\.\\d+")),
+    multi_mapped = as.numeric(str_extract(lines[grep("% of reads mapped to multiple loci", lines)], "\\d+\\.\\d+")),
+    unmapped = 100 - (uniquely_mapped + multi_mapped)
+  )
+}
+
+star_summary <- bind_rows(lapply(star_logs, parse_star_log))
+
+p_star <- star_summary %>%
+  pivot_longer(cols = c(uniquely_mapped, multi_mapped, unmapped), names_to = "type", values_to = "percent") %>%
+  ggplot(aes(x = sample, y = percent, fill = type)) +
+  geom_bar(stat = "identity") +
+  ylab("Percentage of reads") +
+  ggtitle("STAR alignment summary") +
+  theme_minimal()
+```
+
+#FeatureCounts summary
+
+```{r}
+counts_dir <- "counts"
+count_files <- list.files(counts_dir, pattern = "featureCounts.txt$", full.names = TRUE)
+
+parse_counts <- function(file) {
+  df <- read_tsv(file, skip = 1)  # skip header line
+  tibble(
+    sample = str_replace(basename(file), "_featureCounts.txt", ""),
+    total_counts = sum(df$`Assigned`)
+  )
+}
+
+counts_summary <- bind_rows(lapply(count_files, parse_counts))
+
+p_counts <- counts_summary %>%
+  ggplot(aes(x = sample, y = total_counts/1e6)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  ylab("Total counts (millions)") +
+  ggtitle("featureCounts summary") +
+  theme_minimal()
+
+# ---- 4. Combine plots ----
+final_plot <- ggarrange(p_fastp, p_star, p_counts, ncol = 1, nrow = 3, labels = c("A", "B", "C"))
+
+ggsave("QC_summary.pdf", final_plot, width = 8, height = 12)
+
+
+```
