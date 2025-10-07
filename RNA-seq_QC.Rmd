@@ -9,6 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+
 # Load pkgs
 
 ```{r}
@@ -16,6 +17,7 @@ library(tidyverse)
 library(ggpubr)
 library(jsonlite)
 ```
+
 
 
 # Fastp summary
@@ -99,7 +101,6 @@ fastp_metrics%>%
 
 
 
-
 # STAR alignment summary
 
 ```{r}
@@ -125,35 +126,42 @@ p_star <- star_summary %>%
   ylab("Percentage of reads") +
   ggtitle("STAR alignment summary") +
   theme_minimal()
+p_star
+
 ```
+
+
 
 #FeatureCounts summary
 
 ```{r}
 counts_dir <- "counts"
-count_files <- list.files(counts_dir, pattern = "featureCounts.txt$", full.names = TRUE)
+count_files <- list.files(counts_dir, pattern = ".summary$", full.names = TRUE)
 
-parse_counts <- function(file) {
-  df <- read_tsv(file, skip = 1)  # skip header line
+parse_summary <- function(file) {
+  df <- read_tsv(file, col_names = c("category", "count"))
+  assigned <- df$count[df$category == "Assigned"]
   tibble(
-    sample = str_replace(basename(file), "_featureCounts.txt", ""),
-    total_counts = sum(df$`Assigned`)
+    sample = str_replace(basename(file), "_featureCounts.txt.summary", ""),
+    assigned_reads = assigned
   )
 }
 
-counts_summary <- bind_rows(lapply(count_files, parse_counts))
+counts_summary <- bind_rows(lapply(count_files, parse_summary)) %>%
+  mutate(assigned_reads = as.numeric(assigned_reads))
 
-p_counts <- counts_summary %>%
-  ggplot(aes(x = sample, y = total_counts/1e6)) +
-  geom_bar(stat = "identity", fill = "steelblue") +
-  ylab("Total counts (millions)") +
-  ggtitle("featureCounts summary") +
-  theme_minimal()
-
-# ---- 4. Combine plots ----
-final_plot <- ggarrange(p_fastp, p_star, p_counts, ncol = 1, nrow = 3, labels = c("A", "B", "C"))
-
-ggsave("QC_summary.pdf", final_plot, width = 8, height = 12)
-
+p_counts <- ggplot(counts_summary, aes(x = sample, y = assigned_reads)) +
+  geom_col(fill = "steelblue") +
+  scale_y_continuous(labels=label_comma(), limits=c(0, NA)) +
+  theme_minimal(base_size = 14) +
+  labs(
+    title = "Assigned Reads per Sample (featureCounts)",
+    x = "Sample",
+    y = "Assigned Reads"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+p_counts
 
 ```
